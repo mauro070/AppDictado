@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Dictado → Doc</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto; padding: 16px; max-width: 760px;
+    background:#000; color:#e8e8e8;
+    font-family:-apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  h2 { color:#AFAFFA; margin:8px 0 16px; }
+  label { display:block; color:#bdbdbd; text-transform:uppercase; letter-spacing:.08em; font-size:12px; margin:12px 0 6px; }
+  #vivo {
+    min-height:44px; background:#111; border:1px solid #555; border-radius:8px;
+    padding:10px; color:#9D9DF5; font-style:italic; transition:border-color .2s;
+  }
+  #vivo.on { border-color:#AFAFFA; }
+  #texto {
+    width:100%; min-height:220px; background:#2b2b2b; color:#e8e8e8;
+    border:1px solid #555; border-radius:8px; padding:12px; font-size:16px;
+    line-height:1.45; resize:vertical;
+  }
+  .fila { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  button { flex:1; min-width:120px; border:0; border-radius:8px; padding:14px; font-weight:700; font-size:15px; cursor:pointer; }
+  .go { background:#AFAFFA; color:#1c1340; }
+  .go:hover { background:#9D9DF5; }
+  .go:disabled { opacity:.5; cursor:default; }
+  .del { background:transparent; color:#FF5014; border:1px solid #FF5014; flex:0 0 auto; min-width:52px; }
+  #estado { margin-top:14px; padding-top:10px; border-top:1px solid #555; color:#cfcfcf; font-size:13px; min-height:18px; }
+</style>
+</head>
+<body>
+  <h2>🎤 Dictado → Google Doc</h2>
+
+  <label>En vivo</label>
+  <div id="vivo">…</div>
+
+  <label>Texto (editable)</label>
+  <textarea id="texto" placeholder="Acá aparece lo dictado. Tocá para mover el cursor y editar a mano."></textarea>
+
+  <div class="fila">
+    <button id="btnRec" class="go">🎙️ Grabar</button>
+    <button id="btnEnviar" class="go">✅ Enviar</button>
+    <button id="btnLimpiar" class="del">🗑️</button>
+  </div>
+
+  <div id="estado"></div>
+
+<script>
+  const SCRIPT_URL = 'PEGA_AQUI_LA_URL_DEL_WEB_APP';
+
+  const ta = document.getElementById('texto');
+  const vivo = document.getElementById('vivo');
+  const btnRec = document.getElementById('btnRec');
+  const btnEnviar = document.getElementById('btnEnviar');
+  const btnLimpiar = document.getElementById('btnLimpiar');
+  const estado = document.getElementById('estado');
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, grabando = false, cursor = 0, wakeLock = null;
+
+  // Mantener pantalla encendida mientras se graba (clave en celular)
+  async function lockScreen() {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch(_){}
+  }
+  async function unlockScreen() {
+    try { if (wakeLock) { await wakeLock.release(); wakeLock = null; } } catch(_){}
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (grabando && document.visibilityState === 'visible') lockScreen();
+  });
+
+  if (!SR) {
+    estado.textContent = 'Este navegador no soporta dictado. Abrilo en Chrome.';
+    btnRec.disabled = true;
+  }
+
+  // Guardar posicion del cursor para insertar / continuar desde ahi
+  const guardarCursor = () => { cursor = ta.selectionStart; };
+  ta.addEventListener('click', guardarCursor);
+  ta.addEventListener('keyup', guardarCursor);
+  ta.addEventListener('input', guardarCursor);
+
+  function insertar(txt) {
+    const antes = ta.value.slice(0, cursor);
+    const despues = ta.value.slice(cursor);
+    const sep = (antes && !/\s$/.test(antes)) ? ' ' : '';
+    ta.value = antes + sep + txt + despues;
+    cursor = (antes + sep + txt).length;
+    ta.selectionStart = ta.selectionEnd = cursor;
+  }
+
+  function crearRec() {
+    const r = new SR();
+    r.lang = 'es-AR';
+    r.continuous = true;
+    r.interimResults = true;
+    r.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i];
+        if (res.isFinal) { insertar(res[0].transcript.trim()); interim = ''; }
+        else { interim += res[0].transcript; }
+      }
+      vivo.textContent = interim || '…';
+    };
+    r.onerror = (e) => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      estado.textContent = 'Error de dictado: ' + e.error;
+    };
+    r.onend = () => { if (grabando) { try { r.start(); } catch(_){} } };
+    return r;
+  }
+
+  function empezar() {
+    if (!rec) rec = crearRec();
+    grabando = true;
+    lockScreen();
+    try { rec.start(); } catch(_){}
+    btnRec.textContent = '⏸️ Detener';
+    vivo.classList.add('on');
+    estado.textContent = 'Grabando… hablá.';
+  }
+
+  function detener() {
+    grabando = false;
+    unlockScreen();
+    if (rec) rec.stop();
+    vivo.textContent = '…';
+    vivo.classList.remove('on');
+    btnRec.textContent = '▶️ Continuar';
+    estado.textContent = 'Pausado. Tocá el texto donde quieras seguir y "Continuar".';
+  }
+
+  btnRec.addEventListener('click', () => grabando ? detener() : empezar());
+
+  btnLimpiar.addEventListener('click', () => {
+    if (!ta.value || confirm('¿Borrar todo el texto?')) {
+      ta.value = ''; cursor = 0; vivo.textContent = '…';
+      estado.textContent = 'Texto borrado.';
+    }
+  });
+
+  btnEnviar.addEventListener('click', async () => {
+    const texto = ta.value.trim();
+    if (!texto) { estado.textContent = 'No hay nada para enviar.'; return; }
+    if (grabando) detener();
+    btnEnviar.disabled = true;
+    estado.textContent = 'Enviando…';
+    try {
+      const r = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: texto
+      });
+      const data = await r.json();
+      if (data.ok) { estado.textContent = '✅ Enviado al Doc.'; ta.value = ''; cursor = 0; }
+      else { estado.textContent = '⚠️ Error: ' + (data.error || 'desconocido'); }
+    } catch (err) {
+      estado.textContent = '⚠️ Se envió, pero sin confirmación. Revisá el Doc.';
+    } finally {
+      btnEnviar.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
