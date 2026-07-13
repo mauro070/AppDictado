@@ -3,38 +3,53 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Dictado → Doc</title>
+<title>Grabar Notas</title>
 <style>
-  :root { color-scheme: dark; }
+  :root {
+    color-scheme: dark;
+    --bg:#0d0f14; --surface:#1a1e27; --surface2:#232935; --border:#2c313c;
+    --text:#e6e8ec; --muted:#9aa3b2; --accent:#0999d8; --accent-ink:#06222e;
+    --rec:#ef4444;
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0 auto; padding: 16px; max-width: 760px;
-    background:#000; color:#e8e8e8;
+    background:var(--bg); color:var(--text);
     font-family:-apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   }
-  h2 { color:#AFAFFA; margin:8px 0 16px; }
-  label { display:block; color:#bdbdbd; text-transform:uppercase; letter-spacing:.08em; font-size:12px; margin:12px 0 6px; }
+  h2 { color:var(--accent); margin:8px 0 16px; font-size:26px; }
+  label { display:block; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; font-size:12px; margin:12px 0 6px; }
   #vivo {
-    min-height:44px; background:#111; border:1px solid #555; border-radius:8px;
-    padding:10px; color:#9D9DF5; font-style:italic; transition:border-color .2s;
+    min-height:44px; background:var(--surface2); border:1px solid var(--border); border-radius:10px;
+    padding:10px; color:var(--accent); font-style:italic; transition:border-color .2s, box-shadow .2s;
   }
-  #vivo.on { border-color:#AFAFFA; }
+  #vivo.on { border-color:var(--rec); box-shadow:0 0 0 1px var(--rec) inset; color:#fca5a5; }
   #texto {
-    width:100%; min-height:220px; background:#2b2b2b; color:#e8e8e8;
-    border:1px solid #555; border-radius:8px; padding:12px; font-size:16px;
+    width:100%; min-height:220px; background:var(--surface); color:var(--text);
+    border:1px solid var(--border); border-radius:10px; padding:12px; font-size:16px;
     line-height:1.45; resize:vertical;
   }
+  #texto:focus { outline:none; border-color:var(--accent); }
   .fila { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
-  button { flex:1; min-width:120px; border:0; border-radius:8px; padding:14px; font-weight:700; font-size:15px; cursor:pointer; }
-  .go { background:#AFAFFA; color:#1c1340; }
-  .go:hover { background:#9D9DF5; }
+  button { flex:1; min-width:120px; border:0; border-radius:10px; padding:14px; font-weight:700; font-size:15px; cursor:pointer; transition:background .15s, box-shadow .15s; }
+  .rec-btn { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+  .rec-btn:hover { background:#2b3240; }
+  .rec-btn.grabando { background:var(--rec); color:#fff; border-color:var(--rec); animation:pulse 1.4s infinite; }
+  @keyframes pulse {
+    0%   { box-shadow:0 0 0 0 rgba(239,68,68,.55); }
+    70%  { box-shadow:0 0 0 16px rgba(239,68,68,0); }
+    100% { box-shadow:0 0 0 0 rgba(239,68,68,0); }
+  }
+  .go { background:var(--accent); color:var(--accent-ink); }
+  .go:hover { background:#5fcbfa; }
   .go:disabled { opacity:.5; cursor:default; }
-  .del { background:transparent; color:#FF5014; border:1px solid #FF5014; flex:0 0 auto; min-width:52px; }
-  #estado { margin-top:14px; padding-top:10px; border-top:1px solid #555; color:#cfcfcf; font-size:13px; min-height:18px; }
+  .del { background:transparent; color:var(--muted); border:1px solid var(--border); flex:0 0 auto; min-width:52px; }
+  .del:hover { color:var(--rec); border-color:var(--rec); }
+  #estado { margin-top:14px; padding-top:10px; border-top:1px solid var(--border); color:var(--muted); font-size:13px; min-height:18px; }
 </style>
 </head>
 <body>
-  <h2>🎤 Dictado → Google Doc</h2>
+  <h2>Grabar Notas</h2>
 
   <label>En vivo</label>
   <div id="vivo">…</div>
@@ -43,7 +58,7 @@
   <textarea id="texto" placeholder="Acá aparece lo dictado. Tocá para mover el cursor y editar a mano."></textarea>
 
   <div class="fila">
-    <button id="btnRec" class="go">🎙️ Grabar</button>
+    <button id="btnRec" class="rec-btn">🎙️ Grabar</button>
     <button id="btnEnviar" class="go">✅ Enviar</button>
     <button id="btnLimpiar" class="del">🗑️</button>
   </div>
@@ -51,7 +66,8 @@
   <div id="estado"></div>
 
 <script>
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhso_poFS_F3Hf68ZnmIJmFX1_qSLJhJ6SPGxTc9ygqLnhcnAt30UbPW7Do1VEXWWc8w/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/library/d/1fEjQfDIuX_C4MrnK4vvEjyIZG2NmNHD0tJAK20Bp3z0PZcfC_8nVdhYg/2';
+  const KEY = 'grabarnotas_texto';
 
   const ta = document.getElementById('texto');
   const vivo = document.getElementById('vivo');
@@ -63,7 +79,11 @@
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let rec = null, grabando = false, cursor = 0, wakeLock = null;
 
-  // Mantener pantalla encendida mientras se graba (clave en celular)
+  // Autoguardado: restaurar al abrir
+  try { const g = localStorage.getItem(KEY); if (g) { ta.value = g; cursor = g.length; } } catch(_){}
+  function guardar() { try { localStorage.setItem(KEY, ta.value); } catch(_){} }
+
+  // Mantener pantalla encendida mientras se graba
   async function lockScreen() {
     try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch(_){}
   }
@@ -83,7 +103,7 @@
   const guardarCursor = () => { cursor = ta.selectionStart; };
   ta.addEventListener('click', guardarCursor);
   ta.addEventListener('keyup', guardarCursor);
-  ta.addEventListener('input', guardarCursor);
+  ta.addEventListener('input', () => { guardarCursor(); guardar(); });
 
   function insertar(txt) {
     const antes = ta.value.slice(0, cursor);
@@ -92,15 +112,16 @@
     ta.value = antes + sep + txt + despues;
     cursor = (antes + sep + txt).length;
     ta.selectionStart = ta.selectionEnd = cursor;
+    guardar();
   }
 
   function crearRec() {
     const r = new SR();
     r.lang = 'es-AR';
-    r.continuous = false;      // Android: 1 frase por sesion (evita el bug de duplicados)
+    r.continuous = false;      // Android: 1 frase por sesion (evita duplicados)
     r.interimResults = true;
     r.maxAlternatives = 1;
-    let insertados = 0;        // cuantos finales ya inserte en esta sesion
+    let insertados = 0;
 
     r.onstart = () => { insertados = 0; };
     r.onresult = (e) => {
@@ -108,10 +129,7 @@
       for (let i = 0; i < e.results.length; i++) {
         const res = e.results[i];
         if (res.isFinal) {
-          if (i >= insertados) {           // solo el/los que faltan (nunca duplica)
-            insertar(res[0].transcript.trim());
-            insertados = i + 1;
-          }
+          if (i >= insertados) { insertar(res[0].transcript.trim()); insertados = i + 1; }
         } else {
           interim += res[0].transcript;
         }
@@ -123,7 +141,6 @@
       estado.textContent = 'Error de dictado: ' + e.error;
     };
     r.onend = () => {
-      // Android corta tras cada frase; reiniciamos con un respiro para no chocar el start()
       if (grabando) setTimeout(() => { if (grabando) { try { r.start(); } catch(_){} } }, 300);
     };
     return r;
@@ -134,7 +151,8 @@
     grabando = true;
     lockScreen();
     try { rec.start(); } catch(_){}
-    btnRec.textContent = '⏸️ Detener';
+    btnRec.textContent = '⏹️ Detener';
+    btnRec.classList.add('grabando');
     vivo.classList.add('on');
     estado.textContent = 'Grabando… hablá.';
   }
@@ -145,6 +163,7 @@
     if (rec) rec.stop();
     vivo.textContent = '…';
     vivo.classList.remove('on');
+    btnRec.classList.remove('grabando');
     btnRec.textContent = '▶️ Continuar';
     estado.textContent = 'Pausado. Tocá el texto donde quieras seguir y "Continuar".';
   }
@@ -153,7 +172,7 @@
 
   btnLimpiar.addEventListener('click', () => {
     if (!ta.value || confirm('¿Borrar todo el texto?')) {
-      ta.value = ''; cursor = 0; vivo.textContent = '…';
+      ta.value = ''; cursor = 0; vivo.textContent = '…'; guardar();
       estado.textContent = 'Texto borrado.';
     }
   });
@@ -171,7 +190,7 @@
         body: texto
       });
       const data = await r.json();
-      if (data.ok) { estado.textContent = '✅ Enviado al Doc.'; ta.value = ''; cursor = 0; }
+      if (data.ok) { estado.textContent = '✅ Enviado al Doc.'; ta.value = ''; cursor = 0; guardar(); }
       else { estado.textContent = '⚠️ Error: ' + (data.error || 'desconocido'); }
     } catch (err) {
       estado.textContent = '⚠️ Se envió, pero sin confirmación. Revisá el Doc.';
