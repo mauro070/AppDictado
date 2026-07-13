@@ -8,7 +8,7 @@
   :root {
     color-scheme: dark;
     --bg:#0d0f14; --surface:#1a1e27; --surface2:#232935; --border:#2c313c;
-    --text:#e6e8ec; --muted:#9aa3b2; --accent:#0999d8; --accent-ink:#06222e;
+    --text:#e6e8ec; --muted:#9aa3b2; --accent:#0999d8; --accent-ink:#04202b;
     --rec:#ef4444;
   }
   * { box-sizing: border-box; }
@@ -41,11 +41,12 @@
     100% { box-shadow:0 0 0 0 rgba(239,68,68,0); }
   }
   .go { background:var(--accent); color:var(--accent-ink); }
-  .go:hover { background:#5fcbfa; }
+  .go:hover { background:#1fb0ea; }
   .go:disabled { opacity:.5; cursor:default; }
   .del { background:transparent; color:var(--muted); border:1px solid var(--border); flex:0 0 auto; min-width:52px; }
   .del:hover { color:var(--rec); border-color:var(--rec); }
   #estado { margin-top:14px; padding-top:10px; border-top:1px solid var(--border); color:var(--muted); font-size:13px; min-height:18px; }
+  #version { margin-top:24px; text-align:center; color:var(--border); font-size:12px; letter-spacing:.05em; }
 </style>
 </head>
 <body>
@@ -64,9 +65,14 @@
   </div>
 
   <div id="estado"></div>
+  <div id="version"></div>
 
 <script>
-  const SCRIPT_URL = 'https://script.google.com/macros/library/d/1fEjQfDIuX_C4MrnK4vvEjyIZG2NmNHD0tJAK20Bp3z0PZcfC_8nVdhYg/2';
+  // ====== EDITAR A MANO ======
+  const VERSION = 'v3.0';                            // subí este número cuando cambies algo
+  const TOKEN = 'vIi94e-T6XSiwPHDaKue1vKhXyrJLR-U';  // debe coincidir con el TOKEN de Codigo.gs
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhso_poFS_F3Hf68ZnmIJmFX1_qSLJhJ6SPGxTc9ygqLnhcnAt30UbPW7Do1VEXWWc8w/exec';
+  // ===========================
   const KEY = 'grabarnotas_texto';
 
   const ta = document.getElementById('texto');
@@ -75,6 +81,7 @@
   const btnEnviar = document.getElementById('btnEnviar');
   const btnLimpiar = document.getElementById('btnLimpiar');
   const estado = document.getElementById('estado');
+  document.getElementById('version').textContent = VERSION;
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let rec = null, grabando = false, cursor = 0, wakeLock = null;
@@ -187,7 +194,7 @@
       const r = await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: texto
+        body: JSON.stringify({ token: TOKEN, texto })
       });
       const data = await r.json();
       if (data.ok) { estado.textContent = '✅ Enviado al Doc.'; ta.value = ''; cursor = 0; guardar(); }
