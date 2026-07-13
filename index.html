@@ -97,14 +97,24 @@
   function crearRec() {
     const r = new SR();
     r.lang = 'es-AR';
-    r.continuous = true;
+    r.continuous = false;      // Android: 1 frase por sesion (evita el bug de duplicados)
     r.interimResults = true;
+    r.maxAlternatives = 1;
+    let insertados = 0;        // cuantos finales ya inserte en esta sesion
+
+    r.onstart = () => { insertados = 0; };
     r.onresult = (e) => {
       let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
+      for (let i = 0; i < e.results.length; i++) {
         const res = e.results[i];
-        if (res.isFinal) { insertar(res[0].transcript.trim()); interim = ''; }
-        else { interim += res[0].transcript; }
+        if (res.isFinal) {
+          if (i >= insertados) {           // solo el/los que faltan (nunca duplica)
+            insertar(res[0].transcript.trim());
+            insertados = i + 1;
+          }
+        } else {
+          interim += res[0].transcript;
+        }
       }
       vivo.textContent = interim || '…';
     };
@@ -112,7 +122,10 @@
       if (e.error === 'no-speech' || e.error === 'aborted') return;
       estado.textContent = 'Error de dictado: ' + e.error;
     };
-    r.onend = () => { if (grabando) { try { r.start(); } catch(_){} } };
+    r.onend = () => {
+      // Android corta tras cada frase; reiniciamos con un respiro para no chocar el start()
+      if (grabando) setTimeout(() => { if (grabando) { try { r.start(); } catch(_){} } }, 300);
+    };
     return r;
   }
 
