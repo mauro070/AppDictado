@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Grabar Notas</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d0f14">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root {
     color-scheme: dark;
@@ -69,7 +72,7 @@
 
 <script>
   // ====== EDITAR A MANO ======
-  const VERSION = 'v3.0';                            // subí este número cuando cambies algo
+  const VERSION = 'v4.0';                            // subí este número cuando cambies algo
   const TOKEN = 'vIi94e-T6XSiwPHDaKue1vKhXyrJLR-U';  // debe coincidir con el TOKEN de Codigo.gs
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhso_poFS_F3Hf68ZnmIJmFX1_qSLJhJ6SPGxTc9ygqLnhcnAt30UbPW7Do1VEXWWc8w/exec';
   // ===========================
@@ -82,6 +85,7 @@
   const btnLimpiar = document.getElementById('btnLimpiar');
   const estado = document.getElementById('estado');
   document.getElementById('version').textContent = VERSION;
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let rec = null, grabando = false, cursor = 0, wakeLock = null;
