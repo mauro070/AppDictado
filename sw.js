@@ -1,4 +1,4 @@
-const CACHE = 'grabar-notas-v1';
+const CACHE = 'grabar-notas-v5';
 
 self.addEventListener('install', (e) => self.skipWaiting());
 self.addEventListener('activate', (e) => self.clients.claim());
