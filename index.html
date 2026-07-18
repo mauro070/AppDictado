@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Grabar Notas</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0d0f14">
@@ -22,6 +22,12 @@
   }
   h2 { color:var(--accent); margin:8px 0 16px; font-size:26px; }
   label { display:block; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; font-size:12px; margin:12px 0 6px; }
+  .seg { display:flex; gap:8px; }
+  .seg-btn {
+    flex:1; background:var(--surface2); color:var(--muted); border:1px solid var(--border);
+    border-radius:10px; padding:12px; font-weight:700; font-size:14px; cursor:pointer; transition:all .15s;
+  }
+  .seg-btn.sel { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
   #vivo {
     min-height:44px; background:var(--surface2); border:1px solid var(--border); border-radius:10px;
     padding:10px; color:var(--accent); font-style:italic; transition:border-color .2s, box-shadow .2s;
@@ -55,6 +61,12 @@
 <body>
   <h2>Grabar Notas</h2>
 
+  <label>Destino</label>
+  <div class="seg" id="seg">
+    <button class="seg-btn" data-dest="gpt">📝 GPT → MD</button>
+    <button class="seg-btn" data-dest="notion">🗂️ Notion</button>
+  </div>
+
   <label>En vivo</label>
   <div id="vivo">…</div>
 
@@ -72,20 +84,47 @@
 
 <script>
   // ====== EDITAR A MANO ======
-  const VERSION = 'v4.0';                            // subí este número cuando cambies algo
-  const TOKEN = 'vIi94e-T6XSiwPHDaKue1vKhXyrJLR-U';  // debe coincidir con el TOKEN de Codigo.gs
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhso_poFS_F3Hf68ZnmIJmFX1_qSLJhJ6SPGxTc9ygqLnhcnAt30UbPW7Do1VEXWWc8w/exec';
+  const VERSION = 'v5.0';   // subí este número (y CACHE en sw.js) cuando cambies algo
+  const DESTINOS = {
+    gpt: {
+      nombre: 'GPT → MD',
+      url:   'https://script.google.com/macros/s/AKfycbxhso_poFS_F3Hf68ZnmIJmFX1_qSLJhJ6SPGxTc9ygqLnhcnAt30UbPW7Do1VEXWWc8w/exec',
+      token: 'vIi94e-T6XSiwPHDaKue1vKhXyrJLR-U'
+    },
+    notion: {
+      nombre: 'Notion',
+      url:   'https://script.google.com/macros/s/AKfycbzN1QHquHTWd15o0DUq0SMi0YgwbwjZDhq4ZKDwcvXpxggHasueISJQda7Pc-uySOBB/exec',
+      token: 'tuvieja'
+    }
+  };
+  const DEST_DEFAULT = 'gpt';
   // ===========================
   const KEY = 'grabarnotas_texto';
+  const KEY_DEST = 'grabarnotas_destino';
 
   const ta = document.getElementById('texto');
   const vivo = document.getElementById('vivo');
+  const seg = document.getElementById('seg');
   const btnRec = document.getElementById('btnRec');
   const btnEnviar = document.getElementById('btnEnviar');
   const btnLimpiar = document.getElementById('btnLimpiar');
   const estado = document.getElementById('estado');
   document.getElementById('version').textContent = VERSION;
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+  // ====== Selector de destino ======
+  let destino = DESTINOS[localStorage.getItem(KEY_DEST)] ? localStorage.getItem(KEY_DEST) : DEST_DEFAULT;
+  function pintarDestino() {
+    seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('sel', b.dataset.dest === destino));
+  }
+  seg.addEventListener('click', (e) => {
+    const b = e.target.closest('.seg-btn'); if (!b) return;
+    destino = b.dataset.dest;
+    try { localStorage.setItem(KEY_DEST, destino); } catch(_){}
+    pintarDestino();
+    estado.textContent = 'Destino: ' + DESTINOS[destino].nombre;
+  });
+  pintarDestino();
 
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let rec = null, grabando = false, cursor = 0, wakeLock = null;
@@ -192,19 +231,20 @@
     const texto = ta.value.trim();
     if (!texto) { estado.textContent = 'No hay nada para enviar.'; return; }
     if (grabando) detener();
+    const dest = DESTINOS[destino];
     btnEnviar.disabled = true;
-    estado.textContent = 'Enviando…';
+    estado.textContent = 'Enviando a ' + dest.nombre + '…';
     try {
-      const r = await fetch(SCRIPT_URL, {
+      const r = await fetch(dest.url, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ token: TOKEN, texto })
+        body: JSON.stringify({ token: dest.token, texto })
       });
       const data = await r.json();
-      if (data.ok) { estado.textContent = '✅ Enviado al Doc.'; ta.value = ''; cursor = 0; guardar(); }
-      else { estado.textContent = '⚠️ Error: ' + (data.error || 'desconocido'); }
+      if (data.ok) { estado.textContent = '✅ Enviado a ' + dest.nombre + '.'; ta.value = ''; cursor = 0; guardar(); }
+      else { estado.textContent = '⚠️ Error (' + dest.nombre + '): ' + (data.error || 'desconocido'); }
     } catch (err) {
-      estado.textContent = '⚠️ Se envió, pero sin confirmación. Revisá el Doc.';
+      estado.textContent = '⚠️ No se pudo confirmar el envío a ' + dest.nombre + '. Revisá el Doc antes de reintentar.';
     } finally {
       btnEnviar.disabled = false;
     }
